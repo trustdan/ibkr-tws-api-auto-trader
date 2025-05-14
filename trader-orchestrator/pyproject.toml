@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "trader-orchestrator"
+version = "0.1.0"
+description = "Python orchestrator for automated trading via Interactive Brokers TWS API"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+ib_insync = "^0.9.85"
+pyyaml = "^6.0"
+pandas = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+pytest-bdd = "^6.1.1"
+flake8 = "^6.0.0"
+black = "^23.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 

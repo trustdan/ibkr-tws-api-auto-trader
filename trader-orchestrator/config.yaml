@@ -1,0 +1,10 @@
+ibkr:
+  host: "127.0.0.1"
+  port: 7497
+  client_id: 1
+strategy:
+  sma_period: 50
+  candle_count: 2
+  otm_offset: 1     # number of strikes OTM
+  iv_threshold: 0.8 # percentile threshold (0–1)
+  min_reward_risk: 1.0 

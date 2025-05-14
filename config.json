@@ -1,0 +1,7 @@
+{
+  "sma50_period": 50,
+  "candle_count": 2,
+  "iv_threshold": 0.8,
+  "min_reward_risk": 1.0,
+  "universe": ["AAPL", "MSFT", "SPY", "QQQ", "AMZN", "META", "GOOG", "TSLA"]
+} 

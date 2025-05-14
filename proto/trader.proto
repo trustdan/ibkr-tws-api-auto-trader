@@ -1,0 +1,59 @@
+syntax = "proto3";
+package trader;
+
+option go_package = "github.com/user/trader-scanner/pkg/pb";
+
+enum SignalType {
+  NONE = 0;
+  CALL_DEBIT = 1;
+  PUT_DEBIT = 2;
+  CALL_CREDIT = 3;
+  PUT_CREDIT = 4;
+}
+
+message BarsRequest {
+  string symbol = 1;
+  int32 days = 2;
+}
+
+message Bar {
+  string date = 1;      // YYYY-MM-DD
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  double volume = 6;
+}
+
+message BarsResponse {
+  repeated Bar bars = 1;
+}
+
+message IVRequest {
+  string symbol = 1;
+}
+
+message IVResponse {
+  double percentile = 1;  // 0.0–1.0
+}
+
+message ScanRequest {
+  repeated string symbols = 1;
+}
+
+message ScanResponse {
+  message Result {
+    string symbol = 1;
+    SignalType signal = 2;
+  }
+  repeated Result results = 1;
+}
+
+service MarketDataService {
+  rpc GetHistoricalBars(BarsRequest) returns (BarsResponse);
+  rpc GetIVPercentile(IVRequest) returns (IVResponse);
+}
+
+service ScannerService {
+  rpc ScanUniverse(ScanRequest) returns (ScanResponse);
+} 
