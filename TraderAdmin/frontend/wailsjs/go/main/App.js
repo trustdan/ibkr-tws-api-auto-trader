@@ -18,8 +18,24 @@ export function GetDefaultConfig() {
   return window['go']['main']['App']['GetDefaultConfig']();
 }
 
+export function GetPositions() {
+  return window['go']['main']['App']['GetPositions']();
+}
+
 export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
+}
+
+export function PauseScanning() {
+  return window['go']['main']['App']['PauseScanning']();
+}
+
+export function ResumeScanning() {
+  return window['go']['main']['App']['ResumeScanning']();
+}
+
+export function ScanSignals() {
+  return window['go']['main']['App']['ScanSignals']();
 }
 
 export function Status() {

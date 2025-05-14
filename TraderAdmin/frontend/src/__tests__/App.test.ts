@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import pkg from '../package.json';
+import pkg from '../../package.json';
 
 describe('App Version', () => {
   it('should have a valid version in package.json', () => {

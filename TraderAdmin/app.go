@@ -181,3 +181,66 @@ func (a *App) GetConfigSchema() string {
 
 	return schema
 }
+
+// Signal represents a trading signal
+type Signal struct {
+	Symbol    string `json:"symbol"`
+	Signal    int    `json:"signal"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+// Position represents a trading position
+type Position struct {
+	Symbol        string  `json:"symbol"`
+	Quantity      int     `json:"quantity"`
+	AvgPrice      float64 `json:"avgPrice"`
+	UnrealizedPnL float64 `json:"unrealizedPnL"`
+}
+
+// ScanSignals returns mock scanning signals
+func (a *App) ScanSignals() []Signal {
+	// Mock data for now
+	return []Signal{
+		{
+			Symbol:    "AAPL",
+			Signal:    1,             // CALL_DEBIT
+			Timestamp: 1718550400000, // Example timestamp
+		},
+		{
+			Symbol:    "MSFT",
+			Signal:    2, // PUT_DEBIT
+			Timestamp: 1718550300000,
+		},
+	}
+}
+
+// GetPositions returns mock positions
+func (a *App) GetPositions() []Position {
+	// Mock data for now
+	return []Position{
+		{
+			Symbol:        "AAPL",
+			Quantity:      100,
+			AvgPrice:      185.50,
+			UnrealizedPnL: 250.75,
+		},
+		{
+			Symbol:        "MSFT",
+			Quantity:      50,
+			AvgPrice:      410.25,
+			UnrealizedPnL: -125.50,
+		},
+	}
+}
+
+// PauseScanning mocks pausing the scanner
+func (a *App) PauseScanning() bool {
+	// In a real implementation, this would communicate with the scanner service
+	return true
+}
+
+// ResumeScanning mocks resuming the scanner
+func (a *App) ResumeScanning() bool {
+	// In a real implementation, this would communicate with the scanner service
+	return true
+}

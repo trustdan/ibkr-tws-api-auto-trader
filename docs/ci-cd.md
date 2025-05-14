@@ -52,8 +52,8 @@ When a tag is pushed (e.g., `v1.0.0`), in addition to the CI process:
 
 The project includes helper scripts to streamline the release process:
 
-- **Linux/macOS**: `scripts/release.sh`
-- **Windows**: `scripts/release.bat`
+- **Linux/macOS**: `TraderAdmin/scripts/release.sh`
+- **Windows**: `TraderAdmin/scripts/release.bat`
 
 These scripts:
 1. Update version number in package.json
@@ -66,15 +66,15 @@ These scripts:
 **On Linux/macOS:**
 ```bash
 # Make the script executable (first time only)
-chmod +x scripts/release.sh
+chmod +x TraderAdmin/scripts/release.sh
 # Create a new release
-./scripts/release.sh 1.2.0
+./TraderAdmin/scripts/release.sh 1.2.0
 ```
 
 **On Windows:**
 ```powershell
 # Create a new release
-scripts\release.bat 1.2.0
+TraderAdmin\scripts\release.bat 1.2.0
 ```
 
 ## Manual Steps

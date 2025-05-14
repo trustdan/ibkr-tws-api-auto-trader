@@ -1,24 +1,88 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { writable, type Writable } from 'svelte/store';
-  import type { Signal, Position } from '../stores';
-  import { notifications } from '../stores/notification';
-  import { fetchSignals, fetchPositions, pauseScanner, resumeScanner } from '../services/api';
+  import { GetPositions, ScanSignals, PauseScanning, ResumeScanning } from '../../wailsjs/go/main/App';
   import Spinner from '../components/Spinner.svelte';
 
-  const signals: Writable<Signal[]> = writable([]);
-  const positions: Writable<Position[]> = writable([]);
-  let paused = false;
-  let loading = true;
-  let error: string | null = null;
-  
-  // For the P/L history chart
+  interface Signal {
+    symbol: string;
+    signal: number;
+    timestamp: number;
+  }
+
+  interface Position {
+    symbol: string;
+    quantity: number;
+    avgPrice: number;
+    unrealizedPnL: number;
+  }
+
   interface PLDataPoint {
     timestamp: number;
     value: number;
   }
+
+  const signals: Writable<Signal[]> = writable([]);
+  const positions: Writable<Position[]> = writable([]);
   const plHistory: Writable<PLDataPoint[]> = writable([]);
+  let paused = false;
+  let loading = true;
+  let error: string | null = null;
+
+  // Function to fetch data from backend
+  async function fetchData() {
+    try {
+      loading = true;
+      error = null;
+      
+      // Fetch signals
+      const sigs = await ScanSignals();
+      signals.set(sigs);
+      
+      // Fetch positions
+      const pos = await GetPositions();
+      positions.set(pos);
+      
+      // Update P/L history with new data point
+      const totalPL = pos.reduce((sum: number, p: Position) => sum + p.unrealizedPnL, 0);
+      plHistory.update((history: PLDataPoint[]) => {
+        // Keep only last 20 data points for the chart
+        const newHistory = [...history, {timestamp: Date.now(), value: totalPL}];
+        return newHistory.slice(-20);
+      });
+      
+      // Update chart display
+      updateChartPoints();
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Failed to fetch data';
+      console.error('Error fetching monitoring data:', err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  // Handle pausing scanner
+  function handlePause() {
+    try {
+      PauseScanning();
+      paused = true;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Failed to pause scanning';
+      console.error('Error pausing scan:', err);
+    }
+  }
   
+  // Handle resuming scanner
+  function handleResume() {
+    try {
+      ResumeScanning();
+      paused = false;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Failed to resume scanning';
+      console.error('Error resuming scan:', err);
+    }
+  }
+
   // SVG chart helpers
   let chartPoints = '';
   let chartColor = '#4ade80';
@@ -27,7 +91,7 @@
     if ($plHistory.length < 2) return;
     
     const maxValue = Math.max(Math.abs(Math.max(...$plHistory.map((p: PLDataPoint) => p.value))), 
-                             Math.abs(Math.min(...$plHistory.map((p: PLDataPoint) => p.value))), 10);
+                           Math.abs(Math.min(...$plHistory.map((p: PLDataPoint) => p.value))), 10);
     
     chartPoints = $plHistory.map((p: PLDataPoint, i: number) => 
       `${(i / ($plHistory.length - 1)) * 1000},${50 - (p.value / maxValue * 45)}`
@@ -36,62 +100,19 @@
     chartColor = $plHistory[$plHistory.length - 1].value >= 0 ? "#4ade80" : "#ef4444";
   }
 
-  async function fetchData() {
-    try {
-      loading = true;
-      error = null;
-      
-      const sigs = await fetchSignals();
-      signals.set(sigs);
-      
-      const pos = await fetchPositions();
-      positions.set(pos);
-      
-      // Update P/L history with new data point
-      const totalPL = pos.reduce((sum, p) => sum + p.unrealizedPnL, 0);
-      plHistory.update((history: PLDataPoint[]) => {
-        // Keep only last 20 data points for the chart
-        const newHistory = [...history, {timestamp: Date.now(), value: totalPL}];
-        return newHistory.slice(-20);
-      });
-      
-      updateChartPoints();
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch data';
-      error = errorMsg;
-      console.error('Error fetching monitoring data:', err);
-      notifications.add(`Monitoring data error: ${errorMsg}`, 'error');
-    } finally {
-      loading = false;
-    }
+  // Helper function to convert signal numbers to readable names
+  function getSignalName(signalType: number): string {
+    const signalTypes: Record<number, string> = {
+      0: 'NONE',
+      1: 'CALL_DEBIT',
+      2: 'PUT_DEBIT',
+      3: 'CALL_CREDIT',
+      4: 'PUT_CREDIT'
+    };
+    return signalTypes[signalType] || `UNKNOWN (${signalType})`;
   }
 
-  function handlePause() {
-    try {
-      pauseScanner();
-      paused = true;
-      notifications.add('Scanner paused', 'info');
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to pause scanning';
-      error = errorMsg;
-      console.error('Error pausing scan:', err);
-      notifications.add(`Error pausing scanner: ${errorMsg}`, 'error');
-    }
-  }
-  
-  function handleResume() {
-    try {
-      resumeScanner();
-      paused = false;
-      notifications.add('Scanner resumed', 'info');
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to resume scanning';
-      error = errorMsg;
-      console.error('Error resuming scan:', err);
-      notifications.add(`Error resuming scanner: ${errorMsg}`, 'error');
-    }
-  }
-
+  // Set up polling on component mount
   onMount(() => {
     fetchData();
     const interval = setInterval(fetchData, 5000);
@@ -120,6 +141,7 @@
     </button>
   </div>
   
+  <!-- P/L Chart -->
   <div class="mt-6">
     <h3 class="font-semibold">P/L Over Time</h3>
     {#if loading && $plHistory.length === 0}
@@ -128,7 +150,7 @@
         <p class="mt-2">Loading chart data...</p>
       </div>
     {:else if $plHistory.length === 0}
-      <div class="py-4 text-gray-500">Gathering P/L data...</div>
+      <div class="py-4 text-gray-500">No P/L data available yet</div>
     {:else}
       <div class="h-40 mt-2 border border-gray-300 p-2 bg-white relative">
         <!-- Simple SVG-based chart -->
@@ -159,6 +181,7 @@
     {/if}
   </div>
   
+  <!-- Signals Table -->
   <div class="mt-6">
     <h3 class="font-semibold">Signals</h3>
     {#if loading && $signals.length === 0}
@@ -184,7 +207,7 @@
             {#each $signals as s}
               <tr class="hover:bg-gray-50">
                 <td class="border border-gray-300 p-2">{s.symbol}</td>
-                <td class="border border-gray-300 p-2">{s.signal}</td>
+                <td class="border border-gray-300 p-2">{getSignalName(s.signal)}</td>
                 <td class="border border-gray-300 p-2">{new Date(s.timestamp).toLocaleTimeString()}</td>
               </tr>
             {/each}
@@ -194,6 +217,7 @@
     {/if}
   </div>
   
+  <!-- Positions & P/L -->
   <div class="mt-6">
     <h3 class="font-semibold">Positions & P/L</h3>
     {#if loading && $positions.length === 0}

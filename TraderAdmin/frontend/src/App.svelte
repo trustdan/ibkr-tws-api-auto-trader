@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { schemaStore, configStore, statusStore } from './stores';
   import { GetVersion, Status, ConnectIBKR, GetConfigSchema, GetDefaultConfig, GetCurrentConfig, UpdateConfig } from '../wailsjs/go/main/App';
+  import VersionDisplay from './components/VersionDisplay.svelte';
+  import MonitoringTab from './tabs/MonitoringTab.svelte';
 
   let activeTab = 'connection';
   let loading = true;
@@ -99,7 +101,9 @@
 <main class="bg-gray-100 min-h-screen">
   <div class="max-w-6xl mx-auto px-4 py-6">
     <h1 class="text-2xl font-bold text-center mb-2">TraderAdmin</h1>
-    <div class="text-center text-sm text-gray-500 mb-4">Version: {version}</div>
+    <div class="text-center mb-4">
+      <VersionDisplay className="text-sm text-gray-500" showLabel={true} />
+    </div>
     
     {#if loading}
       <div class="p-6 bg-blue-50 border border-blue-200 rounded text-center">
@@ -291,10 +295,7 @@
             </div>
           {:else if activeTab === 'monitoring'}
             <!-- Monitoring Tab -->
-            <div>
-              <h2 class="text-xl font-bold mb-4">Trading Monitor</h2>
-              <p class="text-gray-600">Monitoring functionality coming soon...</p>
-            </div>
+            <MonitoringTab />
           {/if}
         </div>
       </div>
