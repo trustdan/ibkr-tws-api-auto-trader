@@ -2,130 +2,307 @@
 
 ## 1. Overview
 
-This document guides setting up a local Kubernetes development cluster using **Kind** or **Minikube**.  A local cluster allows you to validate manifests, test service interactions, and simulate production-like deployments without external infrastructure.
+This document guides setting up a local Kubernetes development cluster using **Kind** or **Minikube**. A local cluster allows you to validate manifests, test service interactions, and simulate production-like deployments without external infrastructure.
 
 Key tasks:
 
 * Install and configure Kind or Minikube
 * Create a cluster named `trader-dev`
 * Enable ingress or port-forwarding for service access
-* Deploy using `kubectl apply` to test manifests
+* Deploy our Helm charts for testing
+* Set up local development workflows
 
 ## 2. Prerequisites
 
-* Docker Engine installed and running
+* Docker Desktop installed and running
 * `kubectl` CLI installed (v1.24+)
-* **Kind** (`brew install kind`) or **Minikube** (`brew install minikube`)
-* Helm CLI (optional for Helm charts)
+* **Kind** or **Minikube** 
+* Helm CLI (v3.8+)
 
-## 3. Kind Cluster Setup
+## 3. Installation Instructions (Windows)
 
-### 3.1 Install Kind
+### 3.1 Install Chocolatey (if not already installed)
 
-```bash
-curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-chmod +x ./kind
-mv ./kind /usr/local/bin/kind
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 ```
 
-### 3.2 Create Cluster
+### 3.2 Install kubectl
 
-```bash
-kind create cluster --name trader-dev --config <<EOF
+```powershell
+choco install kubernetes-cli
+```
+
+### 3.3 Install Kind
+
+```powershell
+choco install kind
+```
+
+Or Minikube (alternative):
+
+```powershell
+choco install minikube
+```
+
+### 3.4 Install Helm
+
+```powershell
+choco install kubernetes-helm
+```
+
+## 4. Kind Cluster Setup
+
+### 4.1 Create Kind Configuration
+
+Create a file named `kind-config.yaml`:
+
+```yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
     extraPortMappings:
       - containerPort: 80
         hostPort: 8080
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 8443
+        protocol: TCP
+      - containerPort: 8000
+        hostPort: 8000
+        protocol: TCP
       - containerPort: 2112
         hostPort: 2112
-EOF
+        protocol: TCP
 ```
 
-* Maps container port 80→host 8080 for ingress; 2112→2112 for metrics.
+### 4.2 Create Cluster
 
-### 3.3 Verify
+```powershell
+kind create cluster --name trader-dev --config kind-config.yaml
+```
 
-```bash
+### 4.3 Verify
+
+```powershell
 kubectl cluster-info --context kind-trader-dev
 kubectl get nodes
 ```
 
-## 4. Minikube Cluster Setup (Alternative)
+### 4.4 Install NGINX Ingress Controller
 
-```bash
-minikube start --profile trader-dev --driver=docker --ports "80:80,2112:2112"
+```powershell
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+
+# Wait for ingress controller to be ready
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+```
+
+## 5. Minikube Cluster Setup (Alternative)
+
+### 5.1 Start Minikube
+
+```powershell
+minikube start --profile trader-dev --driver=docker --ports=8000:8000,2112:2112,8080:80
+```
+
+### 5.2 Enable Ingress
+
+```powershell
+minikube addons enable ingress --profile trader-dev
+```
+
+### 5.3 Set Context
+
+```powershell
 kubectl config use-context trader-dev
 ```
 
-Enable ingress:
+## 6. Deploying Services with Helm
 
-```bash
-minikube addons enable ingress
+### 6.1 Deploy using Helm
+
+```powershell
+# Deploy to development environment
+helm install traderadmin ./charts/traderadmin --namespace trader --create-namespace
 ```
 
-## 5. Deploying Services
+### 6.2 Custom Values for Development
 
-1. **Apply ConfigMap & Deployments**:
+Create a file named `dev-values.yaml`:
 
-   ```bash
-   kubectl apply -f deploy/k8s/configmap.yaml
-   kubectl apply -f deploy/k8s/python-orch-deployment.yaml
-   kubectl apply -f deploy/k8s/python-orch-service.yaml
-   kubectl apply -f deploy/k8s/go-scanner-deployment.yaml
-   kubectl apply -f deploy/k8s/go-scanner-service.yaml
+```yaml
+# Dev-specific overrides
+replicaCount:
+  pythonOrch: 1
+  goScanner: 1
+
+resources:
+  pythonOrch:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+config:
+  python:
+    ibkr:
+      host: "host.docker.internal"  # For connecting to TWS running on host machine
+      port: 7497
+  scanner:
+    universe: ["AAPL", "MSFT", "AMZN", "GOOG", "SPY"]  # Limited universe for development
+```
+
+Deploy with development values:
+
+```powershell
+helm install traderadmin ./charts/traderadmin -f dev-values.yaml --namespace trader --create-namespace
+```
+
+### 6.3 Verify Deployment
+
+```powershell
+kubectl get pods -n trader
+kubectl get svc -n trader
+```
+
+## 7. Accessing Services
+
+### 7.1 Port-Forwarding Method
+
+For Python Orchestrator:
+
+```powershell
+kubectl port-forward -n trader svc/traderadmin-python-orch 8000:8000
+```
+
+For Go Scanner Metrics:
+
+```powershell
+kubectl port-forward -n trader svc/traderadmin-go-scanner 2112:2112
+```
+
+### 7.2 Ingress Method
+
+If your Helm chart defines an Ingress resource, you can access services via:
+
+* Python Orchestrator: http://localhost:8080/api/orch
+* Go Scanner: http://localhost:8080/api/scanner
+
+### 7.3 Dashboard Script
+
+Create `dashboard.ps1` for easy access to all services:
+
+```powershell
+# dashboard.ps1
+Write-Host "Starting port-forwarding for all services..."
+Start-Process powershell -ArgumentList "kubectl port-forward -n trader svc/traderadmin-python-orch 8000:8000; Read-Host"
+Start-Process powershell -ArgumentList "kubectl port-forward -n trader svc/traderadmin-go-scanner 2112:2112; Read-Host"
+Write-Host "Services available at:"
+Write-Host "- Python Orchestrator: http://localhost:8000"
+Write-Host "- Go Scanner Metrics: http://localhost:2112/metrics"
+```
+
+## 8. Local Development Workflow
+
+### 8.1 Direct Apply vs Helm
+
+During active development, you can either:
+
+1. Use `kubectl apply` for quick manifest updates:
+   ```powershell
+   kubectl apply -f k8s/python-orch-deployment.yaml -n trader
    ```
-2. **Check Pods & Services**:
 
-   ```bash
-   kubectl get pods -n default
-   kubectl get svc
+2. Use Helm upgrade with values for consistent deployments:
+   ```powershell
+   helm upgrade traderadmin ./charts/traderadmin -f dev-values.yaml --namespace trader
    ```
 
-## 6. Accessing Services
+### 8.2 Connecting to Host Services
 
-* **Python Orchestrator**:
+When running TWS on your local machine, configure your services to use `host.docker.internal` instead of `localhost`:
 
-  * Port-forward: `kubectl port-forward svc/python-orch 8000:8000`
-  * Visit: `http://localhost:8000/health`
+```yaml
+config:
+  python:
+    ibkr:
+      host: "host.docker.internal"
+```
 
-* **Go Scanner Metrics**:
+## 9. Troubleshooting
 
-  * Port-forward: `kubectl port-forward svc/go-scanner 2112:2112`
-  * Visit: `http://localhost:2112/metrics`
+### 9.1 Common Issues
 
-## 7. Cucumber Scenarios
+1. **Images not pulling**: Ensure images exist locally for Kind or are accessible via registry
+   ```powershell
+   kind load docker-image your-registry/python-orch:latest --name trader-dev
+   ```
+
+2. **Connection refused**: Check if ports are properly mapped and services are running
+   ```powershell
+   kubectl get endpoints -n trader
+   ```
+
+3. **Ingress not working**: Verify ingress controller is running
+   ```powershell
+   kubectl get pods -n ingress-nginx
+   ```
+
+### 9.2 Logs
+
+```powershell
+kubectl logs -n trader deploy/traderadmin-python-orch
+kubectl logs -n trader deploy/traderadmin-go-scanner
+```
+
+### 9.3 Resource Management
+
+```powershell
+# Delete resources if needed
+helm uninstall traderadmin -n trader
+
+# Delete cluster
+kind delete cluster --name trader-dev
+```
+
+## 10. Cucumber Scenarios
 
 ```gherkin
 Feature: Local Kubernetes Cluster
   Scenario: Create Kind cluster
-    Given Docker is running
-    When I run kind create cluster
-    Then context "kind-trader-dev" exists
+    Given Docker Desktop is running
+    When I run "kind create cluster --name trader-dev --config kind-config.yaml"
+    Then context "kind-trader-dev" exists in kubectl config
+    And the cluster has 1 node
 
-  Scenario: Deploy services
-    Given cluster "trader-dev" is up
-    When I apply all manifests in deploy/k8s
-    Then pods for python-orch and go-scanner are Ready
+  Scenario: Deploy with Helm
+    Given trader-dev cluster is running
+    When I run "helm install traderadmin ./charts/traderadmin -f dev-values.yaml --namespace trader --create-namespace"
+    Then namespace "trader" contains pods for python-orch and go-scanner
+    And all pods reach Ready state within 2 minutes
 
-  Scenario: Access health and metrics
-    Given services are deployed
-    When I port-forward python-orch to 8000
-    Then GET /health returns status ok
-    And I port-forward go-scanner to 2112
-    Then GET /metrics contains "scan_requests_total"
+  Scenario: Access services
+    Given traderadmin chart is deployed
+    When I port-forward the python-orch service to port 8000
+    Then GET http://localhost:8000/health returns status 200
+    And when I port-forward the go-scanner service to port 2112
+    Then GET http://localhost:2112/metrics contains prometheus metrics
 ```
 
-## 8. Pseudocode Outline
+## 11. Next Steps
 
-```bash
-# Kind
-kind create cluster --name trader-dev --config kind-config.yaml
-kubectl apply -f deploy/k8s/
-kubectl port-forward svc/python-orch 8000:8000 &
-curl http://localhost:8000/health
-kubectl port-forward svc/go-scanner 2112:2112 &
-curl http://localhost:2112/metrics
-```
+1. Experiment with scaling: `kubectl scale -n trader deployment/traderadmin-python-orch --replicas=2`
+2. Set up continuous deployment to your local cluster (see 05-k8s-ci-cd.md)
+3. Configure your Wails GUI to connect to local K8s services
