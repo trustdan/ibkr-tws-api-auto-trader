@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-orch
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "pythonOrch.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount.pythonOrch }}
+  selector:
+    matchLabels:
+      {{- include "pythonOrch.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pythonOrch.selectorLabels" . | nindent 8 }}
+      {{- if .Values.metrics.enabled }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: {{ .Values.metrics.pythonOrch.path | quote }}
+        prometheus.io/port: {{ .Values.metrics.pythonOrch.port | quote }}
+      {{- end }}
+    spec:
+      containers:
+      - name: python-orch
+        image: "{{ .Values.image.pythonOrch.repository }}:{{ .Values.image.pythonOrch.tag }}"
+        imagePullPolicy: {{ .Values.image.pythonOrch.pullPolicy }}
+        args: ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        env:
+        - name: CONFIG_PATH
+          value: "/app/config.yaml"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.pythonOrch.http.port }}
+        - name: grpc
+          containerPort: {{ .Values.service.pythonOrch.grpc.port }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.pythonOrch.readiness.path }}
+            port: {{ .Values.healthCheck.pythonOrch.readiness.port }}
+          initialDelaySeconds: {{ .Values.healthCheck.pythonOrch.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.pythonOrch.readiness.periodSeconds }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.pythonOrch.liveness.path }}
+            port: {{ .Values.healthCheck.pythonOrch.liveness.port }}
+          initialDelaySeconds: {{ .Values.healthCheck.pythonOrch.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.pythonOrch.liveness.periodSeconds }}
+        resources:
+          {{- toYaml .Values.resources.pythonOrch | nindent 10 }}
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: trader-config
+          items:
+          - key: config.yaml
+            path: config.yaml 

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-scanner
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "goScanner.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount.goScanner }}
+  selector:
+    matchLabels:
+      {{- include "goScanner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "goScanner.selectorLabels" . | nindent 8 }}
+      {{- if .Values.metrics.enabled }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: {{ .Values.metrics.goScanner.path | quote }}
+        prometheus.io/port: {{ .Values.metrics.goScanner.port | quote }}
+      {{- end }}
+    spec:
+      containers:
+      - name: go-scanner
+        image: "{{ .Values.image.goScanner.repository }}:{{ .Values.image.goScanner.tag }}"
+        imagePullPolicy: {{ .Values.image.goScanner.pullPolicy }}
+        args: ["--config", "/app/config.json"]
+        env:
+        - name: CONFIG_PATH
+          value: "/app/config.json"
+        - name: PYTHON_ORCHESTRATOR_HOST
+          value: "python-orch"
+        - name: PYTHON_ORCHESTRATOR_PORT
+          value: "{{ .Values.service.pythonOrch.grpc.port }}"
+        - name: REDIS_URL
+          value: "redis://redis:{{ .Values.service.redis.port }}"
+        ports:
+        - name: metrics
+          containerPort: {{ .Values.service.goScanner.metrics.port }}
+        - name: grpc
+          containerPort: {{ .Values.service.goScanner.grpc.port }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.goScanner.readiness.path }}
+            port: {{ .Values.healthCheck.goScanner.readiness.port }}
+          initialDelaySeconds: {{ .Values.healthCheck.goScanner.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.goScanner.readiness.periodSeconds }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.healthCheck.goScanner.liveness.path }}
+            port: {{ .Values.healthCheck.goScanner.liveness.port }}
+          initialDelaySeconds: {{ .Values.healthCheck.goScanner.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.goScanner.liveness.periodSeconds }}
+        resources:
+          {{- toYaml .Values.resources.goScanner | nindent 10 }}
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.json
+          subPath: config.json
+      volumes:
+      - name: config-volume
+        configMap:
+          name: trader-config
+          items:
+          - key: config.json
+            path: config.json 

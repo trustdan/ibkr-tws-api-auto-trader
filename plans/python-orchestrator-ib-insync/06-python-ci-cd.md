@@ -383,6 +383,76 @@ services:
       start_period: 5s
 ```
 
+### Pre-commit Hooks
+
+To ensure code quality during local development, set up pre-commit hooks with a phased adoption approach:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        args: [--line-length=88]
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+  # Flake8 is commented out initially to allow gradual adoption
+  # Uncomment when ready to enforce stricter linting
+  # - repo: https://github.com/pycqa/flake8
+  #   rev: 6.0.0
+  #   hooks:
+  #     - id: flake8
+  #       args: [--max-line-length=88, --extend-ignore=E203]
+  #       exclude: examples/
+  #       additional_dependencies:
+  #         - flake8-bugbear
+```
+
+Also create a `setup.cfg` file to configure flake8 behavior for when you're ready to enforce it:
+
+```ini
+[flake8]
+max-line-length = 88
+extend-ignore = E203, E501
+per-file-ignores =
+    # Allow unused imports in __init__.py files
+    */__init__.py:F401
+    # Allow imports not at top in example files and unused imports
+    */examples/*.py:E402,F401,E231,E501
+    # Allow unused imports and long lines in tests
+    */tests/*.py:F401,E501
+    # Allow unused imports in module files 
+    */src/*/*.py:F401,E231
+    # Ignore specific loop variable issue in market data test
+    */tests/step_defs/test_market_data.py:B007
+```
+
+#### Phased Adoption Approach
+
+1. **Phase 1**: Start with Black and isort only
+   - This automatically formats code while being minimally disruptive
+   - Run: `poetry run pre-commit run --all-files` to apply formatting
+
+2. **Phase 2**: Introduce flake8 with broad exceptions
+   - Uncomment the flake8 section in `.pre-commit-config.yaml`
+   - Fix errors gradually in logical chunks
+
+3. **Phase 3**: Tighten flake8 rules
+   - Update `setup.cfg` to gradually remove exceptions
+   - Focus on one type of issue at a time
+
+Install and run the hooks with:
+
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+```
+
 ## 7. Kubernetes Manifests
 
 Create a basic Kubernetes deployment in `k8s/python-orch-deployment.yaml`:
@@ -545,3 +615,7 @@ This CI/CD pipeline ensures:
 - Health checks to validate deployed services
 
 All changes go through rigorous testing before deployment, and the pipeline automates the tedious tasks of building, testing, and deploying, allowing developers to focus on implementing features and fixing bugs.
+
+You'd most naturally fold that guidance into **06-python-ci-cd.md** under the "Lint & Format" section. In that doc's CI/CD overview and Dockerfile / Actions steps, add a subsection like:
+
+```

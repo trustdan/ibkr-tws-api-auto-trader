@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-scanner
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "goScanner.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.goScanner.type }}
+  selector:
+    {{- include "goScanner.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: metrics
+    port: {{ .Values.service.goScanner.metrics.port }}
+    targetPort: metrics
+  - name: grpc
+    port: {{ .Values.service.goScanner.grpc.port }}
+    targetPort: grpc 

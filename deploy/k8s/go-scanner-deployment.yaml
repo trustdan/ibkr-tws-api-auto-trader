@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-scanner
+  labels:
+    app: go-scanner
+    component: ibkr-trader
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-scanner
+  template:
+    metadata:
+      labels:
+        app: go-scanner
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "2112"
+    spec:
+      containers:
+      - name: go-scanner
+        image: ${REGISTRY:-localhost:5000}/go-scanner:latest
+        imagePullPolicy: IfNotPresent
+        args: ["--config", "/app/config.json"]
+        env:
+        - name: CONFIG_PATH
+          value: "/app/config.json"
+        - name: PYTHON_ORCHESTRATOR_HOST
+          value: "python-orch"
+        - name: PYTHON_ORCHESTRATOR_PORT
+          value: "50051"
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        ports:
+        - name: metrics
+          containerPort: 2112
+        - name: grpc
+          containerPort: 9090
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config.json
+          subPath: config.json
+      volumes:
+      - name: config-volume
+        configMap:
+          name: trader-config
+          items:
+          - key: config.json
+            path: config.json 

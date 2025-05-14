@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trader-config
+  labels:
+    app: ibkr-trader
+data:
+  config.yaml: |
+    ibkr:
+      host: "${IB_HOST:-localhost}"
+      port: ${IB_PORT:-7497}
+      client_id: ${IB_CLIENT_ID:-1}
+    strategy:
+      sma_period: 50
+      candle_count: 2
+      otm_offset: 1
+      iv_threshold: 0.8
+      min_reward_risk: 1.0
+  config.json: |
+    {
+      "sma_period": 50,
+      "candle_count": 2, 
+      "iv_threshold": 0.8,
+      "min_reward_risk": 1.0,
+      "universe": ["AAPL", "MSFT", "GOOG", "AMZN", "META", "TSLA", "SPY"]
+    } 

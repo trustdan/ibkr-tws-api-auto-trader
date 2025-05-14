@@ -1,0 +1,68 @@
+version: '3.8'
+services:
+  python-orch:
+    image: ${REGISTRY:-localhost:5000}/python-orch:latest
+    build:
+      context: ./trader-orchestrator/src
+      dockerfile: Dockerfile
+    environment:
+      - CONFIG_PATH=/app/config.yaml
+      - IB_HOST=${IB_HOST:-localhost}
+      - IB_PORT=${IB_PORT:-7497}
+      - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
+    volumes:
+      - ./trader-orchestrator/config.yaml:/app/config.yaml:ro
+    ports:
+      - "8000:8000"   # HTTP health endpoint
+      - "50051:50051" # gRPC service
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  go-scanner:
+    image: ${REGISTRY:-localhost:5000}/go-scanner:latest
+    build:
+      context: ./trader-scanner
+      dockerfile: cmd/scanner/Dockerfile
+    environment:
+      - CONFIG_PATH=/app/config.json
+      - REDIS_URL=redis://redis:6379
+      - PYTHON_ORCHESTRATOR_HOST=python-orch
+      - PYTHON_ORCHESTRATOR_PORT=50051
+    volumes:
+      - ./trader-scanner/config.json:/app/config.json:ro
+    ports:
+      - "2112:2112" # Prometheus metrics
+      - "9090:9090" # gRPC service
+    depends_on:
+      - python-orch
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2112/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:
+
+networks:
+  default:
+    driver: bridge 

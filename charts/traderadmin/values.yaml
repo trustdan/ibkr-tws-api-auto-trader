@@ -1,0 +1,152 @@
+# Default values for the traderadmin chart
+
+# Namespace to deploy resources
+namespace: ibkr-trader
+
+# Image configuration
+image:
+  # Python Orchestrator image
+  pythonOrch:
+    repository: localhost:5000/python-orch
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Go Scanner image
+  goScanner:
+    repository: localhost:5000/go-scanner
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Redis image
+  redis:
+    repository: redis
+    tag: 6-alpine
+    pullPolicy: IfNotPresent
+
+# Number of replicas
+replicaCount:
+  pythonOrch: 1
+  goScanner: 1
+  redis: 1
+
+# Resource configuration
+resources:
+  pythonOrch:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  goScanner:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  redis:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Application configuration
+config:
+  # Python Orchestrator configuration
+  python:
+    ibkr:
+      host: "localhost"
+      port: 7497
+      client_id: 1
+    strategy:
+      sma_period: 50
+      candle_count: 2
+      otm_offset: 1
+      iv_threshold: 0.8
+      min_reward_risk: 1.0
+  
+  # Go Scanner configuration
+  scanner:
+    sma_period: 50
+    candle_count: 2
+    iv_threshold: 0.8
+    min_reward_risk: 1.0
+    universe:
+      - "AAPL"
+      - "MSFT" 
+      - "GOOG"
+      - "AMZN"
+      - "META"
+      - "TSLA"
+      - "SPY"
+
+# Service configuration
+service:
+  pythonOrch:
+    type: ClusterIP
+    http:
+      port: 8000
+    grpc:
+      port: 50051
+  goScanner:
+    type: ClusterIP
+    metrics:
+      port: 2112
+    grpc:
+      port: 9090
+  redis:
+    type: ClusterIP
+    port: 6379
+
+# Redis persistence
+persistence:
+  enabled: true
+  size: 1Gi
+  accessMode: ReadWriteOnce
+
+# Health check configuration
+healthCheck:
+  pythonOrch:
+    readiness:
+      path: /health
+      port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    liveness:
+      path: /health
+      port: http
+      initialDelaySeconds: 15
+      periodSeconds: 20
+  goScanner:
+    readiness:
+      path: /health
+      port: metrics
+      initialDelaySeconds: 5
+      periodSeconds: 15
+    liveness:
+      path: /health
+      port: metrics
+      initialDelaySeconds: 20
+      periodSeconds: 30
+  redis:
+    readiness:
+      command: ["redis-cli", "ping"]
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    liveness:
+      command: ["redis-cli", "ping"]
+      initialDelaySeconds: 15
+      periodSeconds: 20
+
+# Prometheus metrics
+metrics:
+  enabled: true
+  pythonOrch:
+    path: /metrics
+    port: 8000
+  goScanner:
+    path: /metrics
+    port: 2112 

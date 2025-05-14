@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-scanner
+  labels:
+    app: go-scanner
+    component: ibkr-trader
+spec:
+  type: ClusterIP
+  selector:
+    app: go-scanner
+  ports:
+  - name: metrics
+    port: 2112
+    targetPort: metrics
+  - name: grpc
+    port: 9090
+    targetPort: grpc 

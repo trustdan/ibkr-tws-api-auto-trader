@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount.redis }}
+  selector:
+    matchLabels:
+      {{- include "redis.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "redis.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: redis
+        image: "{{ .Values.image.redis.repository }}:{{ .Values.image.redis.tag }}"
+        imagePullPolicy: {{ .Values.image.redis.pullPolicy }}
+        args: ["--appendonly", "yes"]
+        ports:
+        - name: redis
+          containerPort: {{ .Values.service.redis.port }}
+        readinessProbe:
+          exec:
+            command: {{ .Values.healthCheck.redis.readiness.command }}
+          initialDelaySeconds: {{ .Values.healthCheck.redis.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.redis.readiness.periodSeconds }}
+        livenessProbe:
+          exec:
+            command: {{ .Values.healthCheck.redis.liveness.command }}
+          initialDelaySeconds: {{ .Values.healthCheck.redis.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.healthCheck.redis.liveness.periodSeconds }}
+        resources:
+          {{- toYaml .Values.resources.redis | nindent 10 }}
+        {{- if .Values.persistence.enabled }}
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-data
+      {{- end }} 

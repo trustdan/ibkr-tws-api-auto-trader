@@ -1,19 +1,21 @@
 """Step definitions for the IBKR connection feature."""
 import logging
-import pytest
 from unittest.mock import MagicMock, patch
-from pytest_bdd import scenarios, given, when, then, parsers
+
+import pytest
+from pytest_bdd import given, parsers, scenarios, then, when
 from src.config import load_config
 from src.ibkr.connector import IBConnector
 
 # Import the scenarios from the feature file
-scenarios('../features/ibkr_connection.feature')
+scenarios("../features/ibkr_connection.feature")
+
 
 # Fixtures and shared variables for test scenarios
 @pytest.fixture
 def mock_ib():
     """Create a mocked IB instance."""
-    with patch('src.ibkr.connector.IB') as mock:
+    with patch("src.ibkr.connector.IB") as mock:
         # Mock instance that will be returned by IB()
         mock_instance = mock.return_value
         mock_instance.connectedEvent = []
@@ -27,25 +29,23 @@ def connector(mock_ib):
     """Create an IBConnector with a mocked IB."""
     config = {"ibkr": {"host": "localhost", "port": 7497, "client_id": 1}}
     connector = IBConnector(
-        config["ibkr"]["host"],
-        config["ibkr"]["port"],
-        config["ibkr"]["client_id"]
+        config["ibkr"]["host"], config["ibkr"]["port"], config["ibkr"]["client_id"]
     )
-    
+
     # Set up mock event handlers for testing
     def simulate_connection(*args, **kwargs):
         for handler in mock_ib.return_value.connectedEvent:
             handler()
-    
+
     def simulate_disconnection(*args, **kwargs):
         for handler in mock_ib.return_value.disconnectedEvent:
             handler()
-    
+
     # Store mocked functions for later access
     connector._mock_ib_instance = mock_ib.return_value
     connector._simulate_connection = simulate_connection
     connector._simulate_disconnection = simulate_disconnection
-    
+
     return connector
 
 
@@ -100,7 +100,9 @@ def previously_connected(connector):
 @given("then disconnected")
 def then_disconnected(connector):
     """Simulate disconnection after being connected."""
-    connector._mock_ib_instance.disconnect.side_effect = connector._simulate_disconnection
+    connector._mock_ib_instance.disconnect.side_effect = (
+        connector._simulate_disconnection
+    )
     connector.disconnect()
     assert connector.connected is False
 
@@ -131,7 +133,7 @@ def critical_error_occurs(connector):
     callback = MagicMock()
     connector.add_status_callback(callback)
     connector._error_callback = callback
-    
+
     # Trigger critical error event (1100 = Connectivity between IB and TWS has been lost)
     for handler in connector._mock_ib_instance.errorEvent:
         handler(None, 1100, "Connection lost", None)
@@ -159,5 +161,5 @@ def check_error_logged(caplog):
 @then("connection status callbacks should be notified")
 def check_callbacks_notified(connector):
     """Verify callbacks were notified of status change."""
-    if hasattr(connector, '_error_callback'):
-        connector._error_callback.assert_called_with(False) 
+    if hasattr(connector, "_error_callback"):
+        connector._error_callback.assert_called_with(False)

@@ -12,9 +12,9 @@ This script:
 4. Checks if connected
 5. Disconnects
 """
-import sys
-import os
 import logging
+import os
+import sys
 import time
 
 # Add the project root directory to the Python path
@@ -27,9 +27,9 @@ from src.ibkr.connector import IBConnector
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+
 
 def connection_status_changed(connected):
     """Callback for connection status changes."""
@@ -38,41 +38,42 @@ def connection_status_changed(connected):
     else:
         print("❌ Disconnected from TWS/Gateway")
 
+
 def main():
     """Connect to TWS/Gateway and demonstrate basic usage."""
     print("Interactive Brokers Connection Example")
     print("=====================================\n")
-    
+
     try:
         # Load configuration
         print("Loading configuration...")
         config = load_config()
-        
+
         # Create connector
-        print(f"Creating connector for {config['ibkr']['host']}:{config['ibkr']['port']} (client ID: {config['ibkr']['client_id']})")
-        connector = IBConnector(
-            config['ibkr']['host'],
-            config['ibkr']['port'],
-            config['ibkr']['client_id']
+        print(
+            f"Creating connector for {config['ibkr']['host']}:{config['ibkr']['port']} (client ID: {config['ibkr']['client_id']})"
         )
-        
+        connector = IBConnector(
+            config["ibkr"]["host"], config["ibkr"]["port"], config["ibkr"]["client_id"]
+        )
+
         # Register status callback
         connector.add_status_callback(connection_status_changed)
-        
+
         # Connect to TWS/Gateway
         print("Connecting to TWS/Gateway...")
         success = connector.connect()
-        
+
         if success:
             print("Connected successfully!")
             print("Connection status:", connector.is_connected())
-            
+
             # Keep connection alive for a few seconds
             print("Keeping connection alive for 5 seconds...")
             for _ in range(5):
                 connector.keep_alive()
                 time.sleep(1)
-                
+
             # Disconnect
             print("Disconnecting...")
             connector.disconnect()
@@ -80,12 +81,13 @@ def main():
         else:
             print("Failed to connect to TWS/Gateway")
             print("Make sure TWS/Gateway is running and accepting connections")
-            
+
     except Exception as e:
         print(f"Error: {e}")
         return 1
-        
+
     return 0
 
+
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

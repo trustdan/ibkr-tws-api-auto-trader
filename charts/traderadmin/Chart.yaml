@@ -1,0 +1,13 @@
+apiVersion: v2
+name: traderadmin
+description: Helm chart for IBKR TWS API Auto Trader
+version: 0.1.0
+appVersion: "1.0.0"
+type: application
+maintainers:
+  - name: Your Name
+keywords:
+  - trading
+  - ibkr
+  - autotrader
+home: https://github.com/your-org/ibkr-tws-api-auto-trader 

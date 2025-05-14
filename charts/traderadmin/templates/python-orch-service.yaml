@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-orch
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "pythonOrch.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.pythonOrch.type }}
+  selector:
+    {{- include "pythonOrch.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: http
+    port: {{ .Values.service.pythonOrch.http.port }}
+    targetPort: http
+  - name: grpc
+    port: {{ .Values.service.pythonOrch.grpc.port }}
+    targetPort: grpc 
