@@ -1,9 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import * as app from '../../wailsjs/go/main/App';
 import { 
   fetchSignals, 
   fetchPositions, 
-  pauseScanner, 
+  pauseScanner,
   resumeScanner,
   persistConfig,
   connectToIBKR,
@@ -11,8 +10,9 @@ import {
   checkConnectionStatus,
   fetchConfigSchema
 } from './api';
+import type { Config } from '../stores';
 
-// Mock the wails Go bindings
+// Mock the Wails bindings
 vi.mock('../../wailsjs/go/main/App', () => {
   return {
     ScanSignals: vi.fn(),
@@ -27,118 +27,124 @@ vi.mock('../../wailsjs/go/main/App', () => {
   };
 });
 
+// Import the mocked module using require to avoid await issues
+const app = vi.mocked(require('../../wailsjs/go/main/App'), true);
+
 describe('API Service', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
-  describe('fetchSignals', () => {
-    it('should call ScanSignals and return results', async () => {
+  describe('Signal APIs', () => {
+    it('fetchSignals should return signals when successful', async () => {
       const mockSignals = [
         { symbol: 'AAPL', signal: 1, timestamp: Date.now() }
       ];
+      
       app.ScanSignals.mockResolvedValue(mockSignals);
-
+      
       const result = await fetchSignals();
-      expect(app.ScanSignals).toHaveBeenCalled();
       expect(result).toEqual(mockSignals);
+      expect(app.ScanSignals).toHaveBeenCalledTimes(1);
     });
-
-    it('should propagate errors', async () => {
-      const error = new Error('Network error');
-      app.ScanSignals.mockRejectedValue(error);
-
-      await expect(fetchSignals()).rejects.toThrow('Network error');
+    
+    it('fetchSignals should throw when backend fails', async () => {
+      const mockError = new Error('Backend error');
+      app.ScanSignals.mockRejectedValue(mockError);
+      
+      await expect(fetchSignals()).rejects.toThrow('Backend error');
+      expect(app.ScanSignals).toHaveBeenCalledTimes(1);
     });
   });
-
-  describe('fetchPositions', () => {
-    it('should call GetPositions and return results', async () => {
+  
+  describe('Position APIs', () => {
+    it('fetchPositions should return positions when successful', async () => {
       const mockPositions = [
         { symbol: 'AAPL', quantity: 100, avgPrice: 180.5, unrealizedPnL: 250.75 }
       ];
+      
       app.GetPositions.mockResolvedValue(mockPositions);
-
+      
       const result = await fetchPositions();
-      expect(app.GetPositions).toHaveBeenCalled();
       expect(result).toEqual(mockPositions);
+      expect(app.GetPositions).toHaveBeenCalledTimes(1);
     });
   });
-
-  describe('pauseScanner', () => {
-    it('should call PauseScanning', async () => {
-      app.PauseScanning.mockResolvedValue(undefined);
-
+  
+  describe('Scanner Control APIs', () => {
+    it('pauseScanner should call PauseScanning', async () => {
       await pauseScanner();
-      expect(app.PauseScanning).toHaveBeenCalled();
+      expect(app.PauseScanning).toHaveBeenCalledTimes(1);
     });
-  });
-
-  describe('resumeScanner', () => {
-    it('should call ResumeScanning', async () => {
-      app.ResumeScanning.mockResolvedValue(undefined);
-
+    
+    it('resumeScanner should call ResumeScanning', async () => {
       await resumeScanner();
-      expect(app.ResumeScanning).toHaveBeenCalled();
+      expect(app.ResumeScanning).toHaveBeenCalledTimes(1);
     });
   });
-
-  describe('persistConfig', () => {
-    it('should call SaveConfig with JSON string', async () => {
-      const config = { host: 'localhost', port: 7497, client_id: 1 };
-      app.SaveConfig.mockResolvedValue(undefined);
-
+  
+  describe('Config APIs', () => {
+    it('persistConfig should stringify and send config', async () => {
+      const config: Config = { 
+        host: 'localhost', 
+        port: 7497, 
+        client_id: 1,
+        sma_period: 50,
+        candle_count: 2,
+        otm_offset: 1,
+        iv_threshold: 0.7,
+        min_reward_risk: 1.0,
+        max_bid_ask_distance: 5.0,
+        order_type: 'Limit',
+        price_improvement: 0.5
+      };
+      
       await persistConfig(config);
+      
+      expect(app.SaveConfig).toHaveBeenCalledTimes(1);
       expect(app.SaveConfig).toHaveBeenCalledWith(JSON.stringify(config));
     });
   });
-
-  describe('connectToIBKR', () => {
-    it('should call ConnectIBKR with connection params', async () => {
+  
+  describe('Connection APIs', () => {
+    it('connectToIBKR should pass connection parameters', async () => {
       app.ConnectIBKR.mockResolvedValue(true);
-
+      
       const result = await connectToIBKR('localhost', 7497, 1);
+      
+      expect(result).toBe(true);
+      expect(app.ConnectIBKR).toHaveBeenCalledTimes(1);
       expect(app.ConnectIBKR).toHaveBeenCalledWith('localhost', 7497, 1);
-      expect(result).toBe(true);
     });
-  });
-
-  describe('disconnectFromIBKR', () => {
-    it('should call DisconnectIBKR', async () => {
+    
+    it('disconnectFromIBKR should call DisconnectIBKR', async () => {
       app.DisconnectIBKR.mockResolvedValue(true);
-
+      
       const result = await disconnectFromIBKR();
-      expect(app.DisconnectIBKR).toHaveBeenCalled();
+      
       expect(result).toBe(true);
+      expect(app.DisconnectIBKR).toHaveBeenCalledTimes(1);
     });
-  });
-
-  describe('checkConnectionStatus', () => {
-    it('should call IsConnected', async () => {
-      app.IsConnected.mockResolvedValue(true);
-
+    
+    it('checkConnectionStatus should handle errors gracefully', async () => {
+      app.IsConnected.mockRejectedValue(new Error('Connection error'));
+      
       const result = await checkConnectionStatus();
-      expect(app.IsConnected).toHaveBeenCalled();
-      expect(result).toBe(true);
-    });
-
-    it('should return false on error', async () => {
-      app.IsConnected.mockRejectedValue(new Error('Connection failed'));
-
-      const result = await checkConnectionStatus();
+      
       expect(result).toBe(false);
+      expect(app.IsConnected).toHaveBeenCalledTimes(1);
     });
   });
-
-  describe('fetchConfigSchema', () => {
-    it('should call GetConfigSchema and parse JSON', async () => {
-      const schemaStr = '{"properties":{"host":{"type":"string"}}}';
-      const expectedSchema = { properties: { host: { type: 'string' } } };
-      app.GetConfigSchema.mockResolvedValue(schemaStr);
-
+  
+  describe('Schema APIs', () => {
+    it('fetchConfigSchema should parse JSON schema', async () => {
+      const mockSchema = { properties: { host: { type: 'string' } } };
+      app.GetConfigSchema.mockResolvedValue(JSON.stringify(mockSchema));
+      
       const result = await fetchConfigSchema();
-      expect(app.GetConfigSchema).toHaveBeenCalled();
-      expect(result).toEqual(expectedSchema);
+      
+      expect(result).toEqual(mockSchema);
+      expect(app.GetConfigSchema).toHaveBeenCalledTimes(1);
     });
   });
 }); 

@@ -13,6 +13,11 @@ export interface Config {
   iv_threshold?: number;
   min_reward_risk?: number;
   
+  // Execution parameters
+  max_bid_ask_distance: number;
+  order_type: string;
+  price_improvement: number;
+  
   [key: string]: any; // Allow other properties
 }
 
@@ -33,18 +38,26 @@ const defaultConfig: Config = {
   candle_count: 2,
   otm_offset: 1,
   iv_threshold: 0.7,
-  min_reward_risk: 1.0
+  min_reward_risk: 1.0,
+  
+  // Execution parameters
+  max_bid_ask_distance: 5.0,
+  order_type: 'Limit',
+  price_improvement: 0.5
 };
 
+export interface SchemaProperty {
+  type: string;
+  title?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  default?: any;
+  enum?: any[];
+}
+
 export interface Schema {
-  properties: Record<string, {
-    type: string;
-    title?: string;
-    description?: string;
-    minimum?: number;
-    maximum?: number;
-    default?: any;
-  }>;
+  properties: Record<string, SchemaProperty>;
   required?: string[];
 }
 

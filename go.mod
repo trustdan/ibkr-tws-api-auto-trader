@@ -1,11 +1,11 @@
-module github.com/user/trader-scanner
+module traderadmin
 
-go 1.24.1
+go 1.22
 
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
-	github.com/wailsapp/wails/v2 v2.10.1
-	google.golang.org/grpc v1.72.0
+	github.com/wailsapp/wails/v2 v2.7.1
+	google.golang.org/grpc v1.62.0
 )
 
 require (
@@ -39,3 +39,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 )
+
+// replace github.com/wailsapp/wails/v2 v2.10.1 => C:\Users\danie\go\pkg\mod

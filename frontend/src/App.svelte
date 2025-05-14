@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { schemaStore, configStore, statusStore } from './stores';
+  import { notifications } from './stores/notification';
   import ConnectionTab from './tabs/ConnectionTab.svelte';
   import TradingConfigTab from './tabs/TradingConfigTab.svelte';
   import MonitoringTab from './tabs/MonitoringTab.svelte';
+  import NotificationContainer from './components/NotificationContainer.svelte';
+  import VersionDisplay from './components/VersionDisplay.svelte';
   import { fetchConfigSchema, checkConnectionStatus } from './services/api';
 
   let activeTab = 'connection';
@@ -31,6 +34,10 @@
         error: err instanceof Error ? err.message : String(err)
       });
       error = err instanceof Error ? err.message : String(err);
+      notifications.add(
+        err instanceof Error ? err.message : String(err),
+        'error'
+      );
       loading = false;
     }
   });
@@ -41,41 +48,54 @@
   }
 </script>
 
-<main>
-  <div class="app">
-    <h1>TraderAdmin</h1>
+<main class="bg-gray-100 min-h-screen">
+  <NotificationContainer />
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold text-center mb-6">TraderAdmin</h1>
     
     {#if loading}
-      <div class="loading">Loading application...</div>
+      <div class="p-6 bg-blue-50 border border-blue-200 rounded text-center">
+        <p class="text-lg">Loading application...</p>
+      </div>
     {:else if error}
-      <div class="error">Error: {error}</div>
+      <div class="p-6 bg-red-50 border border-red-200 rounded text-center text-red-700">
+        <p class="text-lg">Error: {error}</p>
+      </div>
     {:else}
-      <div class="flex">
-        <div class="w-48 min-h-screen border-r p-4">
-          <nav>
-            <ul>
-              <li>
-                <button 
-                  class="w-full text-left p-2 rounded" 
-                  class:bg-blue-100={activeTab === 'connection'} 
-                  on:click={() => setActiveTab('connection')}>Connection</button>
-              </li>
-              <li>
-                <button 
-                  class="w-full text-left p-2 rounded" 
-                  class:bg-blue-100={activeTab === 'config'} 
-                  on:click={() => setActiveTab('config')}>Strategy Config</button>
-              </li>
-              <li>
-                <button 
-                  class="w-full text-left p-2 rounded" 
-                  class:bg-blue-100={activeTab === 'monitoring'} 
-                  on:click={() => setActiveTab('monitoring')}>Monitoring</button>
-              </li>
-            </ul>
-          </nav>
+      <!-- Tab Navigation -->
+      <div class="bg-white rounded-t-lg shadow-sm border border-gray-200">
+        <div class="flex border-b">
+          <button 
+            class="py-3 px-6 font-medium focus:outline-none"
+            class:text-blue-600={activeTab === 'connection'}
+            class:border-b-2={activeTab === 'connection'}
+            class:border-blue-600={activeTab === 'connection'}
+            on:click={() => setActiveTab('connection')}
+          >
+            Connection
+          </button>
+          <button 
+            class="py-3 px-6 font-medium focus:outline-none"
+            class:text-blue-600={activeTab === 'config'}
+            class:border-b-2={activeTab === 'config'}
+            class:border-blue-600={activeTab === 'config'}
+            on:click={() => setActiveTab('config')}
+          >
+            Strategy Config
+          </button>
+          <button 
+            class="py-3 px-6 font-medium focus:outline-none"
+            class:text-blue-600={activeTab === 'monitoring'}
+            class:border-b-2={activeTab === 'monitoring'}
+            class:border-blue-600={activeTab === 'monitoring'}
+            on:click={() => setActiveTab('monitoring')}
+          >
+            Monitoring
+          </button>
         </div>
-        <div class="flex-1 p-4">
+      
+        <!-- Tab Content -->
+        <div class="p-6 bg-white rounded-b-lg">
           {#if activeTab === 'connection'}
             <ConnectionTab />
           {:else if activeTab === 'config'}
@@ -85,123 +105,18 @@
           {/if}
         </div>
       </div>
+      
+      <!-- Footer with version -->
+      <div class="mt-4 text-right">
+        <VersionDisplay />
+      </div>
     {/if}
   </div>
 </main>
 
 <style>
-  main {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    padding: 1em;
-    max-width: 1200px;
-    margin: 0 auto;
-    color: #333;
-  }
-  
-  .app {
-    text-align: center;
-  }
-  
-  h1 {
-    color: #0366d6;
-    margin-bottom: 1em;
-  }
-  
-  h2 {
-    margin-top: 0;
-  }
-  
-  .loading, .error {
-    padding: 1em;
-    border-radius: 4px;
-    margin: 2em 0;
-  }
-  
-  .loading {
-    background-color: #f0f8ff;
-    border: 1px solid #b3d9ff;
-  }
-  
-  .error {
-    background-color: #fff0f0;
-    border: 1px solid #ffb3b3;
-    color: #d00;
-  }
-  
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid #ddd;
-    margin-bottom: 2em;
-  }
-  
-  .tab {
-    padding: 0.75em 1.5em;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-  }
-  
-  .tab:hover {
-    background-color: #f5f5f5;
-  }
-  
-  .tab.active {
-    border-bottom: 2px solid #0366d6;
-    font-weight: bold;
-  }
-  
-  .connection-panel, .strategy-panel, .monitor-panel {
-    background-color: #f5f5f5;
-    border-radius: 8px;
-    padding: 1.5em;
-    text-align: left;
-    max-width: 600px;
-    margin: 0 auto;
-  }
-  
-  .status-bar {
-    background-color: #ffeeee;
-    color: #cc0000;
-    padding: 0.75em;
-    border-radius: 4px;
-    margin-bottom: 1.5em;
-    font-weight: bold;
-  }
-  
-  .status-bar.connected {
-    background-color: #eeffee;
-    color: #007700;
-  }
-  
-  .form-group {
-    margin-bottom: 1em;
-  }
-  
-  label {
-    display: block;
-    margin-bottom: 0.5em;
-    font-weight: bold;
-  }
-  
-  input {
-    width: 100%;
-    padding: 0.5em;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 1em;
-  }
-  
-  button {
-    background-color: #0366d6;
-    color: white;
-    border: none;
-    padding: 0.75em 1.5em;
-    font-size: 1em;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 1em;
-  }
-  
-  button:hover {
-    background-color: #0353b4;
+  :global(body) {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
   }
 </style> 

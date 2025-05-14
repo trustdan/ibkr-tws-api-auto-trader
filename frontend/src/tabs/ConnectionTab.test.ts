@@ -1,76 +1,104 @@
-import { render, fireEvent, screen } from '@testing-library/svelte';
-import { vi } from 'vitest';
+import { vi, describe, it, expect, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
 import ConnectionTab from './ConnectionTab.svelte';
 import { configStore, statusStore } from '../stores';
 
-// Mock the Go backend functions
-vi.mock('../../wailsjs/go/main/App', () => ({
-  ConnectIBKR: vi.fn().mockResolvedValue(true),
-  DisconnectIBKR: vi.fn().mockResolvedValue(true)
+// Mock API service
+vi.mock('../services/api', () => ({
+  connectToIBKR: vi.fn().mockResolvedValue(true),
+  disconnectFromIBKR: vi.fn().mockResolvedValue(true)
 }));
 
 describe('ConnectionTab', () => {
-  beforeEach(() => {
-    // Reset stores to default values
-    configStore.set({ host: 'localhost', port: 7497, client_id: 1 });
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    
+    // Reset stores
+    configStore.set({
+      host: 'localhost',
+      port: 7497,
+      client_id: 1
+    });
     statusStore.set({ connected: false });
   });
 
-  test('renders connection form with default values', () => {
+  it('renders connection form', () => {
     render(ConnectionTab);
     
-    // Check form elements exist
-    expect(screen.getByLabelText(/Host:/i)).toHaveValue('localhost');
-    expect(screen.getByLabelText(/Port:/i)).toHaveValue('7497');
-    expect(screen.getByLabelText(/Client ID:/i)).toHaveValue('1');
-    
-    // Check connect button exists and is enabled
-    const connectButton = screen.getByRole('button', { name: /Connect/i });
-    expect(connectButton).toBeEnabled();
+    expect(screen.getByLabelText(/Host:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Port:/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Client ID:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Disconnected/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Connect/i })).toBeInTheDocument();
   });
 
-  test('shows disconnected status when not connected', () => {
+  it('enables connect button when form is valid', async () => {
     render(ConnectionTab);
+    
+    const connectButton = screen.getByRole('button', { name: /Connect/i });
+    expect(connectButton).not.toBeDisabled();
+  });
+
+  it('disables connect button when form is invalid', async () => {
+    configStore.set({
+      host: '',
+      port: 0,
+      client_id: -1
+    });
+    
+    render(ConnectionTab);
+    
+    const connectButton = screen.getByRole('button', { name: /Connect/i });
+    expect(connectButton).toBeDisabled();
+  });
+
+  it('calls connectToIBKR when connect button is clicked', async () => {
+    const { connectToIBKR } = await import('../services/api');
+    render(ConnectionTab);
+    
+    const connectButton = screen.getByRole('button', { name: /Connect/i });
+    await fireEvent.click(connectButton);
+    
+    expect(connectToIBKR).toHaveBeenCalledWith('localhost', 7497, 1);
+    expect(screen.getByText(/Connected/i)).toBeInTheDocument();
+  });
+
+  it('calls disconnectFromIBKR when disconnect button is clicked', async () => {
+    const { disconnectFromIBKR } = await import('../services/api');
+    
+    // Set connected status
+    statusStore.set({ connected: true });
+    
+    render(ConnectionTab);
+    
+    // Should show disconnect button
+    const disconnectButton = screen.getByRole('button', { name: /Disconnect/i });
+    await fireEvent.click(disconnectButton);
+    
+    expect(disconnectFromIBKR).toHaveBeenCalled();
     expect(screen.getByText(/Disconnected/i)).toBeInTheDocument();
   });
 
-  test('connect button calls ConnectIBKR with form values', async () => {
-    const { ConnectIBKR } = await import('../../wailsjs/go/main/App');
+  it('disables form inputs when connected', () => {
+    statusStore.set({ connected: true });
     render(ConnectionTab);
     
-    // Change form values
-    await fireEvent.input(screen.getByLabelText(/Host:/i), {
-      target: { value: 'test-host' }
-    });
-    
-    // Click connect button
-    await fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
-    
-    // Check if ConnectIBKR was called with correct params
-    expect(ConnectIBKR).toHaveBeenCalledWith('test-host', 7497, 1);
+    expect(screen.getByLabelText(/Host:/i)).toBeDisabled();
+    expect(screen.getByLabelText(/Port:/i)).toBeDisabled();
+    expect(screen.getByLabelText(/Client ID:/i)).toBeDisabled();
   });
 
-  test('updates status store when connection succeeds', async () => {
-    const { ConnectIBKR } = await import('../../wailsjs/go/main/App');
-    vi.mocked(ConnectIBKR).mockResolvedValue(true);
+  it('displays error message when connection fails', async () => {
+    const { connectToIBKR } = await import('../services/api');
+    vi.mocked(connectToIBKR).mockRejectedValueOnce(new Error('Connection failed'));
     
     render(ConnectionTab);
-    await fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
     
-    // Check status store was updated
-    let currentStatus;
-    statusStore.subscribe(value => (currentStatus = value))();
-    expect(currentStatus.connected).toBe(true);
-  });
-
-  test('shows error when connection fails', async () => {
-    const { ConnectIBKR } = await import('../../wailsjs/go/main/App');
-    vi.mocked(ConnectIBKR).mockRejectedValue(new Error('Connection error'));
+    const connectButton = screen.getByRole('button', { name: /Connect/i });
+    await fireEvent.click(connectButton);
     
-    render(ConnectionTab);
-    await fireEvent.click(screen.getByRole('button', { name: /Connect/i }));
-    
-    // Check for error message
-    expect(screen.getByText(/Connection error/i)).toBeInTheDocument();
+    expect(screen.getByText(/Connection failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Disconnected/i)).toBeInTheDocument();
   });
 }); 

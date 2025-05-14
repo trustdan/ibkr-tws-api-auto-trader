@@ -99,7 +99,7 @@ func (a *App) GetConfigSchema() string {
 				"title": "Client ID",
 				"description": "IBKR client ID",
 				"default": 1,
-				"minimum": 1
+				"minimum": 0
 			},
 			"sma_period": {
 				"type": "integer",
@@ -139,9 +139,32 @@ func (a *App) GetConfigSchema() string {
 				"description": "Required reward-to-risk ratio",
 				"default": 1.0,
 				"minimum": 0.1
+			},
+			"max_bid_ask_distance": {
+				"type": "number",
+				"title": "Maximum % Distance between Bid and Ask",
+				"description": "Maximum acceptable percentage spread between bid and ask prices",
+				"default": 5.0,
+				"minimum": 0.1,
+				"maximum": 20.0
+			},
+			"order_type": {
+				"type": "string",
+				"title": "Order Type",
+				"description": "Type of order to place when executing trades",
+				"default": "Limit",
+				"enum": ["Market", "Limit", "MidPrice"]
+			},
+			"price_improvement": {
+				"type": "number",
+				"title": "Price Improvement %",
+				"description": "Percentage of mid-price improvement for limit orders",
+				"default": 0.5,
+				"minimum": 0.0,
+				"maximum": 5.0
 			}
 		},
-		"required": ["host", "port", "client_id", "sma_period", "candle_count", "otm_offset", "iv_threshold", "min_reward_risk"]
+		"required": ["host", "port", "client_id", "sma_period", "candle_count", "otm_offset", "iv_threshold", "min_reward_risk", "max_bid_ask_distance", "order_type"]
 	}`
 
 	return schema

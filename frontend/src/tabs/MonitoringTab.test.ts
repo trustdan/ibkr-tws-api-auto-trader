@@ -3,10 +3,16 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import MonitoringTab from './MonitoringTab.svelte';
 import { SignalType } from '../stores';
 
-// Mock the wails Go bindings
-vi.mock('../../wailsjs/go/main/App', () => {
+// Mock functions
+const mockFetchSignals = vi.fn();
+const mockFetchPositions = vi.fn();
+const mockPauseScanner = vi.fn();
+const mockResumeScanner = vi.fn();
+
+// Mock the API services
+vi.mock('../services/api', () => {
   return {
-    scanSignals: vi.fn().mockResolvedValue([
+    fetchSignals: mockFetchSignals.mockResolvedValue([
       {
         symbol: 'AAPL',
         signal: SignalType.CALL_DEBIT,
@@ -18,7 +24,7 @@ vi.mock('../../wailsjs/go/main/App', () => {
         timestamp: Date.now() - 5 * 60 * 1000
       }
     ]),
-    getPositions: vi.fn().mockResolvedValue([
+    fetchPositions: mockFetchPositions.mockResolvedValue([
       {
         symbol: 'AAPL',
         quantity: 100,
@@ -32,8 +38,8 @@ vi.mock('../../wailsjs/go/main/App', () => {
         unrealizedPnL: -125.3
       }
     ]),
-    pauseScanning: vi.fn(),
-    resumeScanning: vi.fn()
+    pauseScanner: mockPauseScanner,
+    resumeScanner: mockResumeScanner
   };
 });
 
@@ -52,8 +58,29 @@ describe('MonitoringTab', () => {
       expect(getByText('MSFT')).toBeTruthy();
       
       // Check for positions
-      const rows = getAllByRole('row');
-      expect(rows.length).toBeGreaterThan(0);
+      expect(getByText('P/L: $250.75')).toBeTruthy();
+      expect(getByText('P/L: $-125.30')).toBeTruthy();
+    });
+  });
+
+  it('displays the P/L chart after loading data', async () => {
+    const { getByText, container } = render(MonitoringTab);
+    
+    // Wait for data to load and chart to render
+    await waitFor(() => {
+      // First check for the chart heading
+      expect(getByText('P/L Over Time')).toBeTruthy();
+      
+      // Then check if SVG chart is rendered
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+      
+      // Check for polyline in the chart
+      const polyline = svg?.querySelector('polyline');
+      expect(polyline).toBeTruthy();
+      
+      // Check for current P/L value display
+      expect(getByText('Current P/L:')).toBeTruthy();
     });
   });
 
@@ -65,7 +92,7 @@ describe('MonitoringTab', () => {
     await fireEvent.click(pauseButton);
     
     // Verify pause was called
-    expect(pauseScanning).toHaveBeenCalled();
+    expect(mockPauseScanner).toHaveBeenCalled();
     
     // Button should now say "Resume Scanning"
     await waitFor(() => {
@@ -77,12 +104,12 @@ describe('MonitoringTab', () => {
     await fireEvent.click(resumeButton);
     
     // Verify resume was called
-    expect(resumeScanning).toHaveBeenCalled();
+    expect(mockResumeScanner).toHaveBeenCalled();
   });
 
   it('handles errors gracefully', async () => {
     // Override mock to simulate error
-    scanSignals.mockRejectedValueOnce(new Error('Network error'));
+    mockFetchSignals.mockRejectedValueOnce(new Error('Network error'));
     
     const { getByText } = render(MonitoringTab);
     
