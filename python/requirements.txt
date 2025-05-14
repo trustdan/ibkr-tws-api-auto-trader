@@ -1,0 +1,13 @@
+ib-insync==0.9.85
+pandas==2.0.3
+numpy==1.24.4
+PyYAML==6.0.1
+grpcio==1.59.0
+grpcio-tools==1.59.0
+protobuf==4.24.4
+fastapi==0.103.2
+uvicorn==0.23.2
+httpx==0.25.0
+pytest==7.4.2
+pytest-bdd==7.0.1
+pytest-cov==4.1.0 

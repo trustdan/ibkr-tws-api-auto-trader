@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trader-prod
+  labels:
+    name: trader-prod
+    environment: production 
