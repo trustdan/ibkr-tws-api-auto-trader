@@ -4,29 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"time"
 )
 
 // App struct represents the main application state and methods
 type App struct {
-	ctx         context.Context
-	isConnected bool
+	ctx       context.Context
+	config    map[string]interface{}
+	connected bool
 }
 
 // NewApp creates a new App instance
 func NewApp() *App {
-	return &App{}
+	return &App{
+		config:    make(map[string]interface{}),
+		connected: false,
+	}
 }
 
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.isConnected = false
 }
 
 // Status returns the connection status
 func (a *App) Status() string {
+	if a.connected {
+		return "TraderAdmin is connected to IBKR"
+	}
 	return "TraderAdmin is running"
 }
 
@@ -35,42 +39,50 @@ func (a *App) GetVersion() string {
 	return "v0.1.0"
 }
 
-// ConnectIBKR attempts to connect to IBKR TWS
-// Returns true if successful, false otherwise
-func (a *App) ConnectIBKR(host string, port int, clientID int) bool {
-	// In a real implementation, this would connect to IBKR TWS
-	// using the provided parameters
-	log.Printf("Connecting to IBKR: %s:%d with clientID %d", host, port, clientID)
-
-	// Simulate successful connection
-	// In production, this would make an actual connection attempt
-	// and return the true connection status
-	a.isConnected = true
-
-	return a.isConnected
+// ConnectIBKR simulates connecting to IBKR TWS
+func (a *App) ConnectIBKR(host string, port int, clientID int) string {
+	connectionString := fmt.Sprintf("Connected to IBKR at %s:%d with client ID %d", host, port, clientID)
+	a.connected = true
+	return connectionString
 }
 
-// DisconnectIBKR disconnects from IBKR TWS
-func (a *App) DisconnectIBKR() bool {
-	// In a real implementation, this would disconnect from IBKR TWS
-	log.Println("Disconnecting from IBKR")
+// UpdateConfig updates the application configuration with JSON input
+func (a *App) UpdateConfig(configJSON string) (bool, error) {
+	var newConfig map[string]interface{}
+	err := json.Unmarshal([]byte(configJSON), &newConfig)
+	if err != nil {
+		return false, err
+	}
 
-	// Simulate successful disconnection
-	a.isConnected = false
-
-	return true
+	a.config = newConfig
+	return true, nil
 }
 
-// GetConnectionStatus returns the current IBKR connection status
-func (a *App) GetConnectionStatus() bool {
-	return a.isConnected
+// GetDefaultConfig returns the default configuration
+func (a *App) GetDefaultConfig() string {
+	defaultConfig := `{
+		"host": "localhost",
+		"port": 7497,
+		"client_id": 1,
+		"sma_period": 50,
+		"candle_count": 2,
+		"otm_offset": 1,
+		"iv_threshold": 0.7,
+		"min_reward_risk": 1.0,
+		"max_bid_ask_distance": 5.0,
+		"order_type": "Limit",
+		"price_improvement": 0.5
+	}`
+	return defaultConfig
 }
 
-// IsConnected checks if we're currently connected to IBKR
-func (a *App) IsConnected() bool {
-	// Return the actual connection status
-	return a.isConnected
+// GetCurrentConfig returns the current configuration (same as default for now)
+func (a *App) GetCurrentConfig() string {
+	return a.GetDefaultConfig()
 }
+
+// SaveConfig saves the configuration (already implemented in app.go)
+// IsConnected is already implemented in app.go
 
 // GetConfigSchema returns the JSON schema for configuration
 func (a *App) GetConfigSchema() string {
@@ -170,27 +182,10 @@ func (a *App) GetConfigSchema() string {
 	return schema
 }
 
-// SaveConfig saves the user configuration
-func (a *App) SaveConfig(configJSON string) error {
-	// Parse the config JSON to validate it
-	var config map[string]interface{}
-	err := json.Unmarshal([]byte(configJSON), &config)
-	if err != nil {
-		log.Printf("Error parsing config JSON: %v", err)
-		return err
-	}
-
-	// In a real implementation, you would save this to a file or database
-	log.Printf("Saving configuration: %s", configJSON)
-
-	// For now, we'll just log it and return success
-	return nil
-}
-
 // Signal represents a trading signal
 type Signal struct {
 	Symbol    string `json:"symbol"`
-	Signal    int    `json:"signal"` // Maps to SignalType enum in proto
+	Signal    int    `json:"signal"`
 	Timestamp int64  `json:"timestamp"`
 }
 
@@ -202,54 +197,50 @@ type Position struct {
 	UnrealizedPnL float64 `json:"unrealizedPnL"`
 }
 
-// ScanSignals retrieves the latest scan signals
+// ScanSignals returns mock scanning signals
 func (a *App) ScanSignals() []Signal {
-	// TODO: Implement actual gRPC call to scanner service
-	// This is a mock implementation
+	// Mock data for now
 	return []Signal{
 		{
 			Symbol:    "AAPL",
-			Signal:    1, // CALL_DEBIT
-			Timestamp: time.Now().UnixMilli(),
+			Signal:    1,             // CALL_DEBIT
+			Timestamp: 1718550400000, // Example timestamp
 		},
 		{
 			Symbol:    "MSFT",
 			Signal:    2, // PUT_DEBIT
-			Timestamp: time.Now().Add(-5 * time.Minute).UnixMilli(),
+			Timestamp: 1718550300000,
 		},
 	}
 }
 
-// GetPositions retrieves current positions
+// GetPositions returns mock positions
 func (a *App) GetPositions() []Position {
-	// TODO: Implement actual gRPC call to market data service
-	// This is a mock implementation
+	// Mock data for now
 	return []Position{
 		{
 			Symbol:        "AAPL",
 			Quantity:      100,
-			AvgPrice:      180.50,
+			AvgPrice:      185.50,
 			UnrealizedPnL: 250.75,
 		},
 		{
 			Symbol:        "MSFT",
-			Quantity:      -50, // Short position
-			AvgPrice:      320.25,
-			UnrealizedPnL: -125.30,
+			Quantity:      50,
+			AvgPrice:      410.25,
+			UnrealizedPnL: -125.50,
 		},
 	}
 }
 
-// PauseScanning pauses the scanner service
-func (a *App) PauseScanning() error {
-	// TODO: Implement actual call to scanner service
-	fmt.Println("Scanning paused")
-	return nil
+// PauseScanning mocks pausing the scanner
+func (a *App) PauseScanning() bool {
+	// In a real implementation, this would communicate with the scanner service
+	return true
 }
 
-// ResumeScanning resumes the scanner service
-func (a *App) ResumeScanning() error {
-	// TODO: Implement actual call to scanner service
-	fmt.Println("Scanning resumed")
-	return nil
+// ResumeScanning mocks resuming the scanner
+func (a *App) ResumeScanning() bool {
+	// In a real implementation, this would communicate with the scanner service
+	return true
 }

@@ -2,15 +2,18 @@
 
 ## 1. Overview
 
-The Trading Config Tab provides a dynamic form for adjusting strategy parameters in real-time.  Users can fine-tune:
+The Trading Config Tab provides a dynamic form for adjusting strategy parameters in real-time. Users can fine-tune not only core strategy parameters but also crucial price execution settings to ensure optimal trade execution:
 
-* **SMA Period** (e.g. 50 days)
-* **Candle Count** (e.g. 2 candles)
-* **OTM Offset** (number of strikes out-of-the-money)
-* **IV Threshold** (percentile for switching to credit spreads)
-* **Minimum Reward/Risk Ratio**
+- **SMA Period** (e.g., 50 days)
+- **Candle Count** (e.g., 2 candles)
+- **OTM Offset** (number of strikes out-of-the-money)
+- **IV Threshold** (percentile for switching to credit spreads)
+- **Minimum Reward/Risk Ratio**
+- **Maximum % Distance between Bid and Ask** (ensures favorable pricing)
+- **Order Type** (Market, Limit, or Mid-price Limit orders)
+- **Price Improvement Percentage** (minimum improvement on mid-price for limit orders)
 
-The form is generated from the JSON schema in `schemaStore`, and updates to `configStore` propagate immediately to the backend when saved.
+The form is generated dynamically from the JSON schema in `schemaStore`, and changes made via the UI update `configStore`, immediately propagating to the backend when saved.
 
 ## 2. Svelte Component Structure
 
@@ -20,7 +23,6 @@ Create `frontend/src/tabs/TradingConfigTab.svelte`:
 <script>
   import { schemaStore, configStore } from '../stores';
   import { saveConfig } from '../../wailsjs/go/main/App';
-  import { get } from 'svelte/store';
 
   let schema;
   let config;
@@ -29,7 +31,6 @@ Create `frontend/src/tabs/TradingConfigTab.svelte`:
   configStore.subscribe(value => (config = value));
 
   async function handleSave() {
-    // Persist config via Go backend
     await saveConfig(JSON.stringify(config));
     alert('Configuration saved');
   }
@@ -42,23 +43,21 @@ Create `frontend/src/tabs/TradingConfigTab.svelte`:
       {#each Object.entries(schema.properties) as [key, prop]}
         <div>
           <label class="block font-medium">{prop.title || key}</label>
-          {#if prop.type === 'integer'}
+          {#if prop.type === 'integer' || prop.type === 'number'}
             <input
               type="number"
+              step={prop.type === 'number' ? '0.01' : '1'}
               bind:value={config[key]}
               min={prop.minimum}
               max={prop.maximum}
               class="border p-1 w-full"
             />
-          {:else if prop.type === 'number'}
-            <input
-              type="number"
-              step="0.01"
-              bind:value={config[key]}
-              min={prop.minimum}
-              max={prop.maximum}
-              class="border p-1 w-full"
-            />
+          {:else if prop.enum}
+            <select bind:value={config[key]} class="border p-1 w-full">
+              {#each prop.enum as option}
+                <option value={option}>{option}</option>
+              {/each}
+            </select>
           {/if}
           {#if prop.description}
             <p class="text-sm text-gray-600">{prop.description}</p>
@@ -75,48 +74,50 @@ Create `frontend/src/tabs/TradingConfigTab.svelte`:
 
 ## 3. Validation & UX
 
-* Ensure numeric fields respect `minimum`/`maximum` from schema
-* Disable Save button until all required fields have valid values
-* Provide inline error messages for invalid inputs
+- Numeric fields enforce `minimum`/`maximum` from schema.
+- Save button is disabled if required fields have invalid values.
+- Provide inline error messages for invalid inputs, especially for bid-ask spreads and price improvement values.
 
 ## 4. Testing & Validation
 
-* **Unit Tests**: Render `TradingConfigTab` with a mock `schemaStore` and `configStore`; simulate user edits and assert `configStore` updates
-* **Integration Tests**: Change a value and click Save; verify `saveConfig` Go binding is called with correct JSON
+- **Unit Tests**: Verify dynamic rendering, input handling, and state updates.
+- **Integration Tests**: Simulate saving configurations and validate the JSON sent to the backend.
 
 ## 5. Cucumber Scenarios
 
 ```gherkin
 Feature: Trading Configuration Tab
-  Scenario: Render dynamic fields
-    Given schemaStore has properties [sma_period, candle_count]
+  Scenario: Render dynamic fields including execution parameters
+    Given schemaStore has execution properties [max_bid_ask_distance, order_type]
     When TradingConfigTab is rendered
-    Then input fields for "SMA Period" and "Candle Count" appear
+    Then input fields for "Maximum % Distance between Bid and Ask" and a dropdown for "Order Type" appear
 
-  Scenario: Update configuration store
-    Given configStore contains {sma_period:50}
-    When user changes sma_period to 60
-    Then configStore.sma_period == 60
+  Scenario: Validate bid-ask distance
+    Given user inputs a max_bid_ask_distance of -1
+    Then an inline validation error is displayed
 
-  Scenario: Save configuration
-    Given configStore has valid values
+  Scenario: Save execution parameters
+    Given valid execution parameters in configStore
     When user clicks "Save"
-    Then saveConfig is invoked with JSON matching configStore
+    Then saveConfig receives correct JSON including max_bid_ask_distance and order_type
 ```
 
 ## 6. Pseudocode Outline
 
 ```text
-// On load:
-schema = await getConfigSchema()
-schemaStore.set(schema)
-configStore.set(defaults)
+// On initialization
+schema = await getConfigSchema();
+schemaStore.set(schema);
+configStore.set(initialDefaults);
 
-// On input change:
-config[key] = newValue
-configStore.set(config)
+// Handle form input
+update configStore with new values;
 
-// On Save:
-saveConfig(JSON.stringify(config))
-alert("Configuration saved")
+// Validate input
+show inline errors if inputs are invalid;
+
+// Save configuration
+onSave():
+  saveConfig(JSON.stringify(configStore));
+  notifyUser("Configuration saved");
 ```

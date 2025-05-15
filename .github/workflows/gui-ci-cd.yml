@@ -1,5 +1,6 @@
 name: GUI CI/CD
 
+# Trigger workflow on PR to main or when a tag is pushed
 on:
   pull_request:
     branches: [ main ]
@@ -11,21 +12,24 @@ jobs:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: false # Continue with other platforms if one fails
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     
     steps:
+      # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Fetch all history for proper versioning
       
+      # Set up Go environment
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
       
+      # Set up Node.js environment with caching for faster builds
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
@@ -33,24 +37,35 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       
+      # Install Wails CLI
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
       
+      # Install frontend dependencies
       - name: Install frontend dependencies
         run: |
           cd frontend
-          npm ci
+          npm ci # Using ci instead of install for reproducible builds
       
+      # Run linting and type checking
       - name: Lint and Type Check
         run: |
           cd frontend
           npm run lint
           npm run check
       
+      # Run frontend tests
+      - name: Run Tests
+        run: |
+          cd frontend
+          npm test
+      
+      # Build the Wails application
       - name: Build Wails App
         run: |
           wails build
       
+      # Platform-specific packaging for Windows
       - name: Package app (Windows)
         if: matrix.os == 'windows-latest'
         run: |
@@ -58,6 +73,7 @@ jobs:
           cp build/bin/TraderAdmin.exe artifacts/
           7z a artifacts/TraderAdmin-windows.zip ./artifacts/TraderAdmin.exe
       
+      # Platform-specific packaging for macOS
       - name: Package app (macOS)
         if: matrix.os == 'macos-latest'
         run: |
@@ -66,6 +82,7 @@ jobs:
           cd artifacts
           zip -r TraderAdmin-macos.zip TraderAdmin.app
       
+      # Platform-specific packaging for Linux
       - name: Package app (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -74,12 +91,14 @@ jobs:
           cd artifacts
           tar -czvf TraderAdmin-linux.tar.gz TraderAdmin
       
+      # Upload build artifacts to GitHub Actions
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
           name: TraderAdmin-${{ matrix.os }}
           path: artifacts/
 
+  # Release job only runs when a tag is pushed
   release:
     if: startsWith(github.ref, 'refs/tags/')
     needs: lint-and-build
@@ -87,28 +106,58 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
       
+      # Generate changelog from git commits
+      - name: Generate Changelog
+        id: changelog
+        shell: bash
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          
+          # If there's no previous tag, use the first commit
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            echo "No previous tag found, using initial commit ${PREVIOUS_COMMIT}"
+            CHANGES=$(git log --pretty=format:"* %s (%h)" ${PREVIOUS_COMMIT}..HEAD)
+          else
+            echo "Previous tag: ${PREVIOUS_TAG}"
+            CHANGES=$(git log --pretty=format:"* %s (%h)" ${PREVIOUS_TAG}..HEAD)
+          fi
+          
+          # Handle multiline output for GitHub Actions
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      # Download the Windows build artifacts
       - name: Download Windows artifacts
         uses: actions/download-artifact@v3
         with:
           name: TraderAdmin-windows-latest
           path: release-artifacts/windows/
       
+      # Download the macOS build artifacts
       - name: Download macOS artifacts
         uses: actions/download-artifact@v3
         with:
           name: TraderAdmin-macos-latest
           path: release-artifacts/macos/
       
+      # Download the Linux build artifacts
       - name: Download Linux artifacts
         uses: actions/download-artifact@v3
         with:
           name: TraderAdmin-ubuntu-latest
           path: release-artifacts/linux/
       
+      # Debug step to verify downloaded artifacts
       - name: Display structure of downloaded files
         run: ls -R release-artifacts/
       
+      # Create a GitHub release
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -121,5 +170,19 @@ jobs:
             release-artifacts/windows/TraderAdmin-windows.zip
             release-artifacts/macos/TraderAdmin-macos.zip
             release-artifacts/linux/TraderAdmin-linux.tar.gz
+          body: |
+            # TraderAdmin ${{ github.ref_name }}
+            
+            ## Installation
+            
+            - **Windows**: Download and extract `TraderAdmin-windows.zip`, then run `TraderAdmin.exe`
+            - **macOS**: Download and extract `TraderAdmin-macos.zip`, then run `TraderAdmin.app`
+            - **Linux**: Download and extract `TraderAdmin-linux.tar.gz`, then run `./TraderAdmin`
+            
+            ## Release Notes
+            
+            *Release notes automatically generated from git commits between tags*
+            
+            ${{ steps.changelog.outputs.changelog }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
